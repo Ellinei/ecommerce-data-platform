@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 import sqlalchemy
+
+from dags._db import warehouse_engine_url
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DBT_PROJECT_DIR = REPO_ROOT / "dbt_project"
@@ -38,13 +39,8 @@ def warehouse_engine():
     `engineer`), and a fresh database has no roles until
     governance/setup_roles.sql is run — which this test suite intentionally
     doesn't do (that's a production/manual concern, not a CI one)."""
-    db_user = os.getenv("WAREHOUSE_DB_USER", "warehouse")
-    db_password = os.getenv("WAREHOUSE_DB_PASSWORD", "warehouse")
-    db_name = os.getenv("WAREHOUSE_DB_NAME", "warehouse")
-    db_host = os.getenv("WAREHOUSE_DB_HOST", "localhost")
-    db_port = os.getenv("WAREHOUSE_DB_PORT", "5432")
     engine = sqlalchemy.create_engine(
-        f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+        warehouse_engine_url(default_host="localhost", default_port="5432")
     )
     with engine.begin() as conn:
         for role in ("engineer", "analyst"):

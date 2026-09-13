@@ -14,6 +14,7 @@ from datetime import datetime
 
 from airflow.decorators import dag, task
 
+from dags._db import warehouse_engine_url
 from dags._operational_defaults import operational_default_args
 
 
@@ -40,12 +41,7 @@ def mlflow_training() -> None:
         from sklearn.model_selection import train_test_split
 
         # ── Read from the warehouse mart ──────────────────────────────────────
-        db_user = os.getenv("WAREHOUSE_DB_USER", "warehouse")
-        db_password = os.getenv("WAREHOUSE_DB_PASSWORD", "warehouse")
-        db_name = os.getenv("WAREHOUSE_DB_NAME", "warehouse")
-        engine = sqlalchemy.create_engine(
-            f"postgresql+psycopg2://{db_user}:{db_password}@postgres_warehouse:5432/{db_name}"
-        )
+        engine = sqlalchemy.create_engine(warehouse_engine_url())
         df = pd.read_sql(
             "SELECT total_orders, avg_order_value, completed_orders, cancelled_orders, "
             "lifetime_value FROM public_marts.mart_customer_orders",

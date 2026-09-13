@@ -11,6 +11,7 @@ from dags.rag_index_dag import (
     _create_embeddings_with_retry,
     _ensure_catalog_embeddings_schema,
     _extract_descriptions_from_manifest,
+    _store_embeddings,
 )
 
 
@@ -137,3 +138,43 @@ def test_catalog_embeddings_upsert_is_idempotent(warehouse_engine):
 
     result = {row.source: row.description for row in rows}
     assert result == {"column": "second", "model": "second model"}
+
+
+def test_store_embeddings_persists_real_vectors_and_is_idempotent(warehouse_engine):
+    """The idempotency test above substitutes NULL for the embedding and
+    never exercises the actual CAST(:embedding AS vector) upsert path or its
+    engine.begin() commit — this test does, with real 1536-dim vectors."""
+    _ensure_catalog_embeddings_schema(warehouse_engine)
+
+    with warehouse_engine.begin() as conn:
+        conn.execute(sqlalchemy.text(
+            "DELETE FROM catalog_embeddings WHERE model_name = 'vector_test_model'"
+        ))
+
+    doc = {"source": "column", "model_name": "vector_test_model",
+           "column_name": "test_col", "description": "first"}
+    embedding_v1 = [0.1] * 1536
+    embedding_v2 = [0.2] * 1536
+
+    stored = _store_embeddings(warehouse_engine, [doc], [embedding_v1])
+    assert stored == 1
+
+    doc["description"] = "second"
+    _store_embeddings(warehouse_engine, [doc], [embedding_v2])
+
+    v2_str = "[" + ",".join(str(x) for x in embedding_v2) + "]"
+    with warehouse_engine.begin() as conn:
+        row = conn.execute(sqlalchemy.text(
+            "SELECT description, embedding <=> CAST(:v AS vector) AS self_distance "
+            "FROM catalog_embeddings WHERE model_name = 'vector_test_model'"
+        ), {"v": v2_str}).one()
+        count = conn.execute(sqlalchemy.text(
+            "SELECT count(*) FROM catalog_embeddings WHERE model_name = 'vector_test_model'"
+        )).scalar()
+        conn.execute(sqlalchemy.text(
+            "DELETE FROM catalog_embeddings WHERE model_name = 'vector_test_model'"
+        ))
+
+    assert count == 1  # upsert, not a duplicate row
+    assert row.description == "second"
+    assert row.self_distance < 1e-6  # stored vector matches embedding_v2

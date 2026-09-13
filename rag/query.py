@@ -15,12 +15,21 @@ from __future__ import annotations
 import os
 import sys
 
-_db_user = os.getenv("WAREHOUSE_DB_USER", "warehouse")
-_db_password = os.getenv("WAREHOUSE_DB_PASSWORD", "warehouse")
-_db_name = os.getenv("WAREHOUSE_DB_NAME", "warehouse")
-_db_host = os.getenv("WAREHOUSE_DB_HOST", "localhost")
-_db_port = os.getenv("WAREHOUSE_DB_PORT", "5433")
-WAREHOUSE_DSN = f"postgresql+psycopg2://{_db_user}:{_db_password}@{_db_host}:{_db_port}/{_db_name}"
+import sqlalchemy
+
+# A standalone script (invoked as `python rag/query.py`, so sys.path[0] is
+# this file's own directory, not the repo root) — it can't import the
+# dags/_db.py helper the DAGs share, so it builds its own URL.create() call
+# here instead of a raw f-string, which misparses a password containing
+# '@', ':', or '/'.
+WAREHOUSE_DSN = sqlalchemy.engine.URL.create(
+    drivername="postgresql+psycopg2",
+    username=os.getenv("WAREHOUSE_DB_USER", "warehouse"),
+    password=os.getenv("WAREHOUSE_DB_PASSWORD", "warehouse"),
+    host=os.getenv("WAREHOUSE_DB_HOST", "localhost"),
+    port=int(os.getenv("WAREHOUSE_DB_PORT", "5433")),
+    database=os.getenv("WAREHOUSE_DB_NAME", "warehouse"),
+)
 TOP_K = 5
 
 
@@ -33,14 +42,12 @@ def embed_query(client, question: str) -> list[float]:
 
 
 def retrieve(engine, vec: list[float], k: int = TOP_K) -> list[dict]:
-    import sqlalchemy
-
     vec_str = "[" + ",".join(str(x) for x in vec) + "]"
     sql = sqlalchemy.text("""
         SELECT source, model_name, column_name, description,
-               1 - (embedding <=> :vec::vector) AS similarity
+               1 - (embedding <=> CAST(:vec AS vector)) AS similarity
         FROM catalog_embeddings
-        ORDER BY embedding <=> :vec::vector
+        ORDER BY embedding <=> CAST(:vec AS vector)
         LIMIT :k
     """)
     with engine.connect() as conn:
@@ -84,7 +91,6 @@ def main() -> None:
         print("Error: OPENAI_API_KEY is not set.")
         sys.exit(1)
 
-    import sqlalchemy
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key)

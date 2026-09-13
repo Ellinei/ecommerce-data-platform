@@ -20,13 +20,10 @@ from pathlib import Path
 
 from airflow.decorators import dag, task
 
+from dags._db import warehouse_engine_url
 from dags._operational_defaults import operational_default_args
 
 MANIFEST_PATH = Path("/opt/airflow/dbt_project/target/manifest.json")
-_db_user = os.getenv("WAREHOUSE_DB_USER", "warehouse")
-_db_password = os.getenv("WAREHOUSE_DB_PASSWORD", "warehouse")
-_db_name = os.getenv("WAREHOUSE_DB_NAME", "warehouse")
-WAREHOUSE_DSN = f"postgresql+psycopg2://{_db_user}:{_db_password}@postgres_warehouse:5432/{_db_name}"
 
 
 def _extract_descriptions_from_manifest(manifest: dict) -> list[dict]:
@@ -108,6 +105,34 @@ def _ensure_catalog_embeddings_schema(engine) -> None:
         conn.execute(sqlalchemy.text(ddl))
 
 
+def _store_embeddings(engine, docs: list[dict], embeddings: list[list[float]]) -> int:
+    """Upserts each doc's embedding into catalog_embeddings. Pulled out of
+    embed_and_store so the actual upsert SQL and commit path are directly
+    unit-testable with real vector values (not a NULL placeholder)."""
+    import sqlalchemy
+
+    upsert_sql = sqlalchemy.text("""
+        INSERT INTO catalog_embeddings
+            (source, model_name, column_name, description, embedding, updated_at)
+        VALUES
+            (:source, :model_name, :column_name, :description,
+             CAST(:embedding AS vector), now())
+        ON CONFLICT (source, model_name, COALESCE(column_name, ''))
+        DO UPDATE SET
+            description = EXCLUDED.description,
+            embedding   = EXCLUDED.embedding,
+            updated_at  = EXCLUDED.updated_at
+    """)
+
+    stored = 0
+    with engine.begin() as conn:
+        for doc, embedding in zip(docs, embeddings):
+            vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
+            conn.execute(upsert_sql, {**doc, "embedding": vec_str})
+            stored += 1
+    return stored
+
+
 def _create_embeddings_with_retry(
     client, model: str, texts: list[str], max_attempts: int = 3
 ):
@@ -147,7 +172,7 @@ def rag_index() -> None:
         """Thin Airflow wrapper — see _ensure_catalog_embeddings_schema."""
         import sqlalchemy
 
-        engine = sqlalchemy.create_engine(WAREHOUSE_DSN)
+        engine = sqlalchemy.create_engine(warehouse_engine_url())
         _ensure_catalog_embeddings_schema(engine)
 
     @task
@@ -174,32 +199,13 @@ def rag_index() -> None:
         from openai import OpenAI
 
         client = OpenAI(api_key=api_key)
-        engine = sqlalchemy.create_engine(WAREHOUSE_DSN)
+        engine = sqlalchemy.create_engine(warehouse_engine_url())
 
-        upsert_sql = sqlalchemy.text("""
-            INSERT INTO catalog_embeddings
-                (source, model_name, column_name, description, embedding, updated_at)
-            VALUES
-                (:source, :model_name, :column_name, :description,
-                 :embedding::vector, now())
-            ON CONFLICT (source, model_name, COALESCE(column_name, ''))
-            DO UPDATE SET
-                description = EXCLUDED.description,
-                embedding   = EXCLUDED.embedding,
-                updated_at  = EXCLUDED.updated_at
-        """)
-
-        stored = 0
         texts = [d["description"] for d in docs]
-
         response = _create_embeddings_with_retry(client, "text-embedding-3-small", texts)
+        embeddings = [emb_obj.embedding for emb_obj in response.data]
 
-        with engine.connect() as conn:
-            for doc, emb_obj in zip(docs, response.data):
-                vec_str = "[" + ",".join(str(x) for x in emb_obj.embedding) + "]"
-                conn.execute(upsert_sql, {**doc, "embedding": vec_str})
-                stored += 1
-            conn.commit()
+        stored = _store_embeddings(engine, docs, embeddings)
 
         print(f"Stored {stored} embeddings in catalog_embeddings.")
         return stored
