@@ -3,6 +3,11 @@
 -- since Olist mints a new customer_id per order (grouping by customer_id
 -- would make every "customer" trivially show exactly 1 order).
 
+{{ config(post_hook=[
+    "{{ apply_rls_policy('engineer_full_access', 'engineer', 'true') }}",
+    "{{ apply_rls_policy('analyst_delivered_only', 'analyst', 'delivered_orders > 0') }}"
+]) }}
+
 with orders as (
 
     select * from {{ ref('stg_olist_orders') }}

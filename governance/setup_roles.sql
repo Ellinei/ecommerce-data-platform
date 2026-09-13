@@ -1,5 +1,17 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 --  Policy as Code — role creation, grants, and row-level security
+--
+--  For the Olist marts (section 5), the GRANT and RLS/policy statements
+--  below are now also re-applied on every dbt run via post-hooks
+--  (dbt_project/dbt_project.yml's olist_marts block + apply_rls() on
+--  mart_olist_customer_orders — see dbt_project/macros/apply_rls.sql and
+--  grant_select.sql), since `table` materialization drops/recreates the
+--  relation each run and would otherwise silently undo them. This script
+--  remains the canonical place to CREATE the `engineer`/`analyst` roles
+--  themselves (a fresh warehouse has neither), which the post-hooks assume
+--  already exist — it is no longer the only thing keeping grants/RLS in
+--  place on those two tables run-to-run.
+--
 --  Demo user passwords are passed in as psql variables (not hardcoded) — set
 --  GOVERNANCE_ENGINEER_PASSWORD / GOVERNANCE_ANALYST_PASSWORD in .env, then run
 --  from host:

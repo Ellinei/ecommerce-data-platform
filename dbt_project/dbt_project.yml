@@ -34,7 +34,9 @@ models:
     olist_marts:
       +materialized: table
       +schema: olist_marts
-      +post-hook: "{{ grant_select('engineer') }}"
+      +post-hook:
+        - "{{ grant_select('engineer') }}"
+        - "{{ grant_select('analyst') }}"
 
 # ── Seed defaults ─────────────────────────────────────────────────────────────
 seeds:
