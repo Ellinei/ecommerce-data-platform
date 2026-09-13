@@ -44,4 +44,9 @@ models:
           - dbt_utils.expression_is_true:
               expression: ">= 0"
       - name: avg_review_score
-        description: "Average customer review score (1-5) across the seller's order items."
+        description: >
+          Average customer review score (1-5) across the seller's distinct
+          reviews — a true per-review average, not weighted by how many
+          items the seller had on the reviewed order.
+      - name: reviewed_orders
+        description: "Count of distinct orders (for this seller) that received at least one review — not a count of review rows."

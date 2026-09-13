@@ -19,32 +19,65 @@ reviews as (
 
 ),
 
-item_reviews as (
+-- Aggregated at the seller/order-item grain only — no review join here, so
+-- an order with multiple reviews can never inflate these sums.
+item_totals as (
 
     select
+        seller_id,
+        count(distinct order_id) as total_orders,
+        sum(price)               as total_revenue,
+        sum(freight_value)       as total_freight
+
+    from order_items
+    group by seller_id
+
+),
+
+-- One row per (seller, order, review): a seller's item(s) on an order link
+-- it to every review left on that order, deduplicated so a seller with
+-- several items on the same order doesn't multiply that order's review(s).
+seller_order_reviews as (
+
+    select distinct
         oi.seller_id,
-        oi.order_id,
-        oi.price,
-        oi.freight_value,
+        r.order_id,
+        r.review_id,
         r.review_score
 
     from order_items oi
-    left join reviews r using (order_id)
+    inner join reviews r using (order_id)
+    where r.review_score is not null
+
+),
+
+-- avg_review_score is a true per-review average (one review = one data
+-- point, regardless of how many items the seller had on that order), and
+-- reviewed_orders counts distinct reviewed orders, not item x review pairs.
+review_totals as (
+
+    select
+        seller_id,
+        avg(review_score)            as avg_review_score,
+        count(distinct order_id)     as reviewed_orders
+
+    from seller_order_reviews
+    group by seller_id
 
 ),
 
 seller_summary as (
 
     select
-        seller_id,
-        count(distinct order_id) as total_orders,
-        sum(price)               as total_revenue,
-        sum(freight_value)       as total_freight,
-        avg(review_score)        as avg_review_score,
-        count(review_score)      as reviewed_orders
+        it.seller_id,
+        it.total_orders,
+        it.total_revenue,
+        it.total_freight,
+        rt.avg_review_score,
+        rt.reviewed_orders
 
-    from item_reviews
-    group by seller_id
+    from item_totals it
+    left join review_totals rt using (seller_id)
 
 )
 
