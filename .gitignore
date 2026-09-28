@@ -45,3 +45,6 @@ openmetadata/*.yaml
 terraform/*.tfstate*
 terraform/.terraform/
 terraform/terraform.tfvars
+
+# Local agent session summaries
+/agent-log/
