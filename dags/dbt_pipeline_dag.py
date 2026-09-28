@@ -31,7 +31,7 @@ from pathlib import Path
 from airflow.decorators import dag, task
 from airflow.operators.bash import BashOperator
 from cosmos import DbtTaskGroup, ExecutionConfig, ProfileConfig, ProjectConfig, RenderConfig
-from cosmos.constants import LoadMode
+from cosmos.constants import LoadMode, TestIndirectSelection
 
 from dags._db import warehouse_engine_url
 from dags._operational_defaults import operational_default_args
@@ -158,6 +158,13 @@ PROFILE_CONFIG = ProfileConfig(
 # ── Cosmos execution config ────────────────────────────────────────────────────
 EXECUTION_CONFIG = ExecutionConfig(
     dbt_executable_path=DBT_EXECUTABLE,
+    # BUILDABLE, not Cosmos's default EAGER: a test that refs several models
+    # (e.g. assert_olist_seller_performance_*, which checks the mart against
+    # staging) must only run in the task of its most downstream model. Under
+    # EAGER, `dbt test --select stg_olist_order_items` also picks it up, runs
+    # it before the mart exists, and fails on any fresh warehouse
+    # (relation "...mart_olist_seller_performance" does not exist).
+    test_indirect_selection=TestIndirectSelection.BUILDABLE,
 )
 
 # ── Cosmos project config ──────────────────────────────────────────────────────
