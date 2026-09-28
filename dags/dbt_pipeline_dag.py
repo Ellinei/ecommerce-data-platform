@@ -31,7 +31,7 @@ from pathlib import Path
 from airflow.decorators import dag, task
 from airflow.operators.bash import BashOperator
 from cosmos import DbtTaskGroup, ExecutionConfig, ProfileConfig, ProjectConfig, RenderConfig
-from cosmos.constants import LoadMode, TestIndirectSelection
+from cosmos.constants import LoadMode, TestBehavior
 
 from dags._db import warehouse_engine_url
 from dags._operational_defaults import operational_default_args
@@ -158,13 +158,6 @@ PROFILE_CONFIG = ProfileConfig(
 # ── Cosmos execution config ────────────────────────────────────────────────────
 EXECUTION_CONFIG = ExecutionConfig(
     dbt_executable_path=DBT_EXECUTABLE,
-    # BUILDABLE, not Cosmos's default EAGER: a test that refs several models
-    # (e.g. assert_olist_seller_performance_*, which checks the mart against
-    # staging) must only run in the task of its most downstream model. Under
-    # EAGER, `dbt test --select stg_olist_order_items` also picks it up, runs
-    # it before the mart exists, and fails on any fresh warehouse
-    # (relation "...mart_olist_seller_performance" does not exist).
-    test_indirect_selection=TestIndirectSelection.BUILDABLE,
 )
 
 # ── Cosmos project config ──────────────────────────────────────────────────────
@@ -227,6 +220,18 @@ def dbt_pipeline() -> None:
     #
     # LoadMode.DBT_LS: Cosmos calls `dbt ls` at scheduler parse time to
     # discover models — accurate and avoids hard-coding node names here.
+    #
+    # TestBehavior.AFTER_ALL: all tests run once, in a single
+    # dbt_transform.dbt_project_test task after every model is built, rather
+    # than one test task per model (Cosmos's default AFTER_EACH). Some tests
+    # ref several models. assert_olist_seller_performance_* checks the mart
+    # against staging, and they ran in the staging models' test tasks before
+    # the mart existed, failing on any fresh warehouse (2026-09-29, AWS). The
+    # other per-model option, BUILDABLE indirect selection, fixed that but
+    # silently stopped 6 relationships tests between sibling staging models
+    # from running anywhere (75 -> 69 tests). AFTER_ALL selects exactly the
+    # original 75. Trade-off: a failing test no longer stops downstream
+    # models from building, but the run still ends failed.
     transform = DbtTaskGroup(
         group_id="dbt_transform",
         project_config=PROJECT_CONFIG,
@@ -235,6 +240,7 @@ def dbt_pipeline() -> None:
         render_config=RenderConfig(
             load_method=LoadMode.DBT_LS,
             select=["path:models/"],   # only models/ — excludes seeds
+            test_behavior=TestBehavior.AFTER_ALL,
             # emit_datasets=False: Cosmos would try to resolve the warehouse
             # Airflow Connection for OpenLineage, but we use a file-based
             # profiles.yml with no Connection — causing an
