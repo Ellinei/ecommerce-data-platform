@@ -1,4 +1,7 @@
 aws_region   = "us-east-1"
 operator_ip  = "203.0.113.42"   # your current public IP (curl ifconfig.me) — re-supply if it changes
 project_name = "airflow-dbt-pipeline"
-github_repo  = "your-username/airflow-dbt-pipeline"   # "owner/repo" this GitHub Actions OIDC role trusts
+# OIDC sub-claim prefix the deploy role trusts — copy it exactly from:
+#   gh api repos/OWNER/REPO/actions/oidc/customization/sub --jq .sub_claim_prefix
+github_oidc_sub_prefix = "repo:your-username@12345678/airflow-dbt-pipeline@987654321"
+# db_instance_class = "db.t4g.small"   # optional; the default micro swapped under the Olist dbt build

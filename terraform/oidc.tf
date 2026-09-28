@@ -22,8 +22,13 @@ resource "aws_iam_openid_connect_provider" "github" {
 }
 
 # ── GitHub Actions deploy role ───────────────────────────────────────────
-# Trusted only by workflow runs from var.github_repo (any branch/ref, any
-# workflow) — no long-lived AWS keys stored as GitHub secrets (spec §11).
+# Trusted only by workflow runs whose OIDC `sub` claim starts with
+# var.github_oidc_sub_prefix (any branch/ref, any workflow) — no long-lived
+# AWS keys stored as GitHub secrets (spec §11). The prefix is read from
+# GitHub rather than built from "owner/repo": repos with immutable subjects
+# enabled send "repo:owner@<id>/repo@<id>:...", which a "repo:owner/repo:*"
+# pattern never matches (the cause of every deploy.yml AccessDenied on
+# 2026-09-02).
 
 data "aws_iam_policy_document" "github_deploy_assume_role" {
   statement {
@@ -44,7 +49,7 @@ data "aws_iam_policy_document" "github_deploy_assume_role" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:*"]
+      values   = ["${var.github_oidc_sub_prefix}:*"]
     }
   }
 }
