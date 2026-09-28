@@ -66,9 +66,13 @@ resource "aws_ecs_task_definition" "webserver" {
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = "512"
-  memory                   = "1024"
-  execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task.arn
+  # 2 GB, not 1 GB: on 2026-09-29 the webserver was OOM-killed
+  # (OutOfMemoryError, memory at 100%) minutes after its first deploy, which
+  # also moved its public IP. That was with gunicorn's default 4 workers; see
+  # AIRFLOW__WEBSERVER__WORKERS below.
+  memory             = "2048"
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
 
   container_definitions = jsonencode([
     {
@@ -84,8 +88,13 @@ resource "aws_ecs_task_definition" "webserver" {
         }
       ]
 
-      environment = local.common_environment
-      secrets     = local.common_secrets
+      # 2 gunicorn workers instead of Airflow's default 4. Each worker loads
+      # the full Airflow app, and 4 was too many for this task's 0.5 vCPU
+      # and its original 1 GB of memory.
+      environment = concat(local.common_environment, [
+        { name = "AIRFLOW__WEBSERVER__WORKERS", value = "2" },
+      ])
+      secrets = local.common_secrets
 
       logConfiguration = {
         logDriver = "awslogs"
