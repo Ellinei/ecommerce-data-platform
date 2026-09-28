@@ -8,6 +8,14 @@ locals {
   common_environment = [
     { name = "PYTHONPATH", value = "/opt/airflow" },
     { name = "AIRFLOW__CORE__EXECUTOR", value = "LocalExecutor" },
+    # Cap LocalExecutor at 4 concurrent tasks (default 32). Every task process
+    # re-parses dbt_pipeline_dag.py, which runs `dbt ls` (Cosmos LoadMode.DBT_LS),
+    # and on 2026-09-02 that pinned the 1-vCPU scheduler at 100% CPU until
+    # tasks timed out. The longer timeouts give `dbt ls` headroom at parse
+    # time; the processor timeout must stay above the import timeout.
+    { name = "AIRFLOW__CORE__PARALLELISM", value = "4" },
+    { name = "AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT", value = "120" },
+    { name = "AIRFLOW__CORE__DAG_FILE_PROCESSOR_TIMEOUT", value = "180" },
     { name = "AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION", value = "true" },
     { name = "AIRFLOW__CORE__LOAD_EXAMPLES", value = "false" },
     { name = "AIRFLOW__API__AUTH_BACKENDS", value = "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session" },
