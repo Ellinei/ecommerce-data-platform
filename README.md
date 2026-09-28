@@ -390,11 +390,23 @@ GitHub repo ──(workflow_dispatch, OIDC)──► GitHub Actions ──build/
 
 ```bash
 cd terraform
-cp terraform.tfvars.example terraform.tfvars   # fill in operator_ip and github_repo
+cp terraform.tfvars.example terraform.tfvars   # fill in operator_ip and github_oidc_sub_prefix (see below)
 terraform init
 terraform apply
 cd ..   # remaining steps run from the repo root; terraform outputs below are read via -chdir=terraform
 ```
+
+**`github_oidc_sub_prefix`** must match exactly what GitHub puts in its OIDC token's `sub` claim,
+so copy it from GitHub rather than typing `owner/repo`:
+
+```bash
+gh api repos/OWNER/REPO/actions/oidc/customization/sub --jq .sub_claim_prefix
+```
+
+Repos with GitHub's immutable subjects enabled send `repo:owner@<owner-id>/repo@<repo-id>`, not
+`repo:owner/repo`. A trust policy built from the plain name rejects every deploy with `Not
+authorized to perform sts:AssumeRoleWithWebIdentity`. If that error ever appears, CloudTrail's
+`AssumeRoleWithWebIdentity` events show the `sub` GitHub actually sent (as `userIdentity.userName`).
 
 **Troubleshooting: `EntityAlreadyExists` on the OIDC provider.** `terraform/oidc.tf` creates an
 `aws_iam_openid_connect_provider` for `token.actions.githubusercontent.com`. AWS allows only **one**

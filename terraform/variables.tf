@@ -27,7 +27,7 @@ variable "db_master_username" {
   default     = "dbadmin"
 }
 
-variable "github_repo" {
-  description = "\"owner/repo\" this GitHub Actions OIDC role trusts, e.g. \"your-username/airflow-dbt-pipeline\". No default: must be supplied to scope the trust policy to this repo only."
+variable "github_oidc_sub_prefix" {
+  description = "Prefix of the GitHub Actions OIDC `sub` claim this deploy role trusts — must match exactly what GitHub sends, which depends on the repo's OIDC settings (e.g. \"repo:owner@123/repo@456\" with immutable subjects, \"repo:owner/repo\" without). Get it with: gh api repos/OWNER/REPO/actions/oidc/customization/sub --jq .sub_claim_prefix. No default: must be supplied to scope the trust policy to this repo only."
   type        = string
 }
