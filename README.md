@@ -600,7 +600,7 @@ pricing (especially the newer per-hour public IPv4 charge) changes over time.
 
 | Resource | If left running 24/7 | Notes |
 |---|---|---|
-| Fargate — webserver (0.5 vCPU / 1 GB) | ~$18/mo | |
+| Fargate — webserver (0.5 vCPU / 2 GB) | ~$21/mo | 2 GB + 2 gunicorn workers: 1 GB with the default 4 workers was OOM-killed |
 | Fargate — scheduler (1 vCPU / 2 GB) | ~$36/mo | dbt builds are more CPU/memory-hungry than the webserver; sized up deliberately |
 | RDS `db.t4g.micro` + 20 GB gp3 | ~$14/mo | bump to `db.t4g.small` (~+$12/mo) if the Olist build OOMs the micro class |
 | Public IPv4 (2 ECS ENIs + 1 RDS) | ~$11/mo | direct cost of public-subnets-no-NAT (§4) — still roughly a third of a NAT gateway's standing charge |
@@ -608,7 +608,7 @@ pricing (especially the newer per-hour public IPv4 charge) changes over time.
 | S3 (task logs + Olist raw data) | ~$0.05/mo | 121 MB Olist data + low log volume |
 | Secrets Manager | ~$0.80/mo | 1 RDS-managed secret + 1 app-secrets JSON |
 | CloudWatch Logs | ~$0.50/mo | short retention, low volume |
-| **Total if left running continuously** | **~$80–85/mo** | not the intended usage pattern |
+| **Total if left running continuously** | **~$83–88/mo** | not the intended usage pattern |
 
 **Per demo session** (stand-up → bootstrap → trigger a run → review → `terraform destroy`, a few
 hours): roughly **$0.30–0.50 total**. Given the full-teardown decision, there is no standing cost
