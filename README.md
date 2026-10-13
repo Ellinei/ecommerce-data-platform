@@ -569,8 +569,8 @@ render in the UI (proves remote S3 task logging is wired up correctly between th
 Fargate containers).
 
 Once that first run succeeds, re-run step 5.3's `setup_roles.sql` command: `dbt_pipeline` has now
-created the `public_raw`, `public_staging` and `public_marts` schemas, so the schema grants and
-row-level security skipped on the fresh warehouse apply this time.
+created the schemas that script grants on, so the schema grants and row-level security skipped on
+the fresh warehouse apply this time.
 
 ### 11. Teardown
 
