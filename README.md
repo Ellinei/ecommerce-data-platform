@@ -516,6 +516,11 @@ Three ordered steps, run once per fresh `terraform apply`:
      -v analyst_password="$GOVERNANCE_ANALYST_PASSWORD" \
      -f governance/setup_roles.sql
    ```
+   On a fresh warehouse only section 1 (roles + demo users) succeeds: from section 2 on, psql prints
+   errors like `schema "public_raw" does not exist` and keeps going (easy to miss in the output),
+   since those schemas don't exist until `dbt_pipeline`'s first run. That's expected and safe to
+   proceed past — the pipeline only needs the roles (for its `grant_select('engineer')` post-hook).
+   Step 10 has you re-run this script once the schemas exist.
 
 ### 6. One-time GitHub setup
 
@@ -563,6 +568,10 @@ easy to mistake for a broken deploy if you don't expect it), trigger it, and con
 render in the UI (proves remote S3 task logging is wired up correctly between the two separate
 Fargate containers).
 
+Once that first run succeeds, re-run step 5.3's `setup_roles.sql` command: `dbt_pipeline` has now
+created the schemas that script grants on, so the schema grants and row-level security skipped on
+the fresh warehouse apply this time.
+
 ### 11. Teardown
 
 In a **shared** AWS account where other repositories/projects depend on the same GitHub OIDC provider
@@ -602,7 +611,7 @@ pricing (especially the newer per-hour public IPv4 charge) changes over time.
 |---|---|---|
 | Fargate — webserver (0.5 vCPU / 2 GB) | ~$21/mo | 2 GB + 2 gunicorn workers: 1 GB with the default 4 workers was OOM-killed |
 | Fargate — scheduler (1 vCPU / 2 GB) | ~$36/mo | dbt builds are more CPU/memory-hungry than the webserver; sized up deliberately |
-| RDS `db.t4g.micro` + 20 GB gp3 | ~$14/mo | bump to `db.t4g.small` (~+$12/mo) if the Olist build OOMs the micro class |
+| RDS `db.t4g.micro` + 20 GB gp3 | ~$14/mo | bump to `db.t4g.small` (~+$12/mo) if the Olist build OOMs the micro class — Paid-plan AWS accounts only; a Free-plan account must stay on micro (an `apply` with small fails partway through with `FreeTierRestrictionError`) |
 | Public IPv4 (2 ECS ENIs + 1 RDS) | ~$11/mo | direct cost of public-subnets-no-NAT (§4) — still roughly a third of a NAT gateway's standing charge |
 | ECR storage | ~$0.30–0.40/mo | image is ~3–4 GB (see Risks) |
 | S3 (task logs + Olist raw data) | ~$0.05/mo | 121 MB Olist data + low log volume |

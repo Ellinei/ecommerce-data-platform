@@ -16,7 +16,7 @@ variable "project_name" {
 }
 
 variable "db_instance_class" {
-  description = "RDS instance class. Bump to db.t4g.small if the Olist dbt build is found to OOM the micro class."
+  description = "RDS instance class. Bump to db.t4g.small if the Olist dbt build is found to OOM the micro class — needs a Paid-plan AWS account: the Free plan only allows db.t3.micro/db.t4g.micro, and an apply with small fails partway through with FreeTierRestrictionError."
   type        = string
   default     = "db.t4g.micro"
 }
