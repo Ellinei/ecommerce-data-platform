@@ -4,4 +4,5 @@ project_name = "airflow-dbt-pipeline"
 # OIDC sub-claim prefix the deploy role trusts — copy it exactly from:
 #   gh api repos/OWNER/REPO/actions/oidc/customization/sub --jq .sub_claim_prefix
 github_oidc_sub_prefix = "repo:your-username@12345678/airflow-dbt-pipeline@987654321"
-# db_instance_class = "db.t4g.small"   # optional; the default micro swapped under the Olist dbt build
+# db_instance_class = "db.t4g.small"   # optional, Paid-plan accounts only; the default micro swapped under the Olist dbt build
+#   Free-plan accounts must stay on micro — an apply with small fails partway through with FreeTierRestrictionError
