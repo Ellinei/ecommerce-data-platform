@@ -1,6 +1,6 @@
 # E-commerce Data Platform — Airflow + dbt + PostgreSQL
 
-A portfolio-grade data engineering project: an end-to-end analytics platform for e-commerce data,
+An end-to-end analytics platform for e-commerce data,
 built on **Apache Airflow 2.9**, **dbt-core 1.8** and **PostgreSQL 15**. It runs entirely in Docker
 on a laptop and can be deployed to AWS with Terraform.
 
